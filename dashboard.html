@@ -2,34 +2,86 @@
 <html>
 <head>
   <title>Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      font-family: Arial;
+      background: #0f172a;
+      color: white;
+      padding: 15px;
+    }
+
+    h1 {
+      text-align: center;
+    }
+
+    .card {
+      background: #1e293b;
+      padding: 15px;
+      border-radius: 15px;
+      margin-bottom: 15px;
+    }
+
+    input {
+      width: 100%;
+      padding: 12px;
+      margin: 5px 0;
+      border-radius: 8px;
+      border: none;
+      font-size: 16px;
+    }
+
+    button {
+      width: 100%;
+      padding: 14px;
+      background: #22c55e;
+      border: none;
+      border-radius: 10px;
+      font-size: 16px;
+      color: white;
+      margin-top: 10px;
+    }
+
+    table {
+      width: 100%;
+      font-size: 12px;
+    }
+
+    td {
+      padding: 6px;
+    }
+
+    .totals {
+      font-size: 16px;
+      margin-top: 10px;
+    }
+  </style>
 </head>
 <body>
-<h1>Credit Tracker Dashboard</h1>
-<h3>Add Transaction</h3>
-<input id="amount" placeholder="Amount Spent">
-<input id="returned" placeholder="Amount Returned">
-<input id="tracking" placeholder="Tracking #">
-<input id="link" placeholder="Product Link">
-<button onclick="addTransaction()">Add</button>
-<h3>Transactions</h3>
-<table border="1" id="table">
-<tr>
-<th>Amount</th>
-<th>Returned</th>
-<th>Profit</th>
-<th>Tracking</th>
-<th>Link</th>
-</tr>
-</table>
-<h2 id="totals"></h2>
-<h2 id="taxes"></h2>
+<h1>📊 Dashboard</h1>
+<div class="card">
+  <h3>Add Transaction</h3>
+  <input id="amount" placeholder="Amount Spent">
+  <input id="returned" placeholder="Amount Returned">
+  <input id="tracking" placeholder="Tracking #">
+  <input id="link" placeholder="Product Link">
+  <button onclick="addTransaction()">Add Transaction</button>
+</div>
+<div class="card">
+  <h3>Totals</h3>
+  <div id="totals" class="totals"></div>
+  <div id="taxes" class="totals"></div>
+</div>
+<div class="card">
+  <h3>Transactions</h3>
+  <table id="table"></table>
+</div>
 <script>
 let data = JSON.parse(localStorage.getItem("data")) || [];
 
-// ---- TAX SETTINGS (EDIT IF NEEDED) ----
-const FEDERAL_RATE = 0.12;     // 12% estimate
-const STATE_RATE = 0.025;      // Arizona 2.5%
-const SE_RATE = 0.153;         // Self-employment tax
+const FEDERAL_RATE = 0.12;
+const STATE_RATE = 0.025;
+const SE_RATE = 0.153;
 
 function addTransaction() {
   let amount = Number(document.getElementById("amount").value);
@@ -49,13 +101,12 @@ function render() {
   let table = document.getElementById("table");
 
   table.innerHTML = `
-  <tr>
-    <th>Amount</th>
-    <th>Returned</th>
-    <th>Profit</th>
-    <th>Tracking</th>
-    <th>Link</th>
-  </tr>`;
+    <tr>
+      <th>Spent</th>
+      <th>Return</th>
+      <th>Profit</th>
+    </tr>
+  `;
 
   let totalSpent = 0;
   let totalReturned = 0;
@@ -66,17 +117,15 @@ function render() {
 
     table.innerHTML += `
       <tr>
-        <td>${t.amount}</td>
-        <td>${t.returned}</td>
-        <td>${t.profit}</td>
-        <td>${t.tracking}</td>
-        <td><a href="${t.link}" target="_blank">Link</a></td>
-      </tr>`;
+        <td>$${t.amount}</td>
+        <td>$${t.returned}</td>
+        <td>$${t.profit}</td>
+      </tr>
+    `;
   });
 
   let totalProfit = totalReturned - totalSpent;
 
-  // ---- TAX CALCULATIONS ----
   let federalTax = totalProfit * FEDERAL_RATE;
   let stateTax = totalProfit * STATE_RATE;
   let seTax = totalProfit * SE_RATE;
@@ -84,11 +133,14 @@ function render() {
   let totalTax = federalTax + stateTax + seTax;
   let netProfit = totalProfit - totalTax;
 
-  document.getElementById("totals").innerText =
-    `Spent: $${totalSpent.toFixed(2)} | Returned: $${totalReturned.toFixed(2)} | Profit: $${totalProfit.toFixed(2)}`;
+  document.getElementById("totals").innerHTML =
+    `💰 Spent: $${totalSpent.toFixed(2)}<br>
+     💵 Returned: $${totalReturned.toFixed(2)}<br>
+     📈 Profit: $${totalProfit.toFixed(2)}`;
 
-  document.getElementById("taxes").innerText =
-    `Estimated Taxes → Federal: $${federalTax.toFixed(2)} | State: $${stateTax.toFixed(2)} | Self-Employment: $${seTax.toFixed(2)} | Total Tax: $${totalTax.toFixed(2)} | Net Profit: $${netProfit.toFixed(2)}`;
+  document.getElementById("taxes").innerHTML =
+    `🧾 Tax: $${totalTax.toFixed(2)}<br>
+     ✅ Net: $${netProfit.toFixed(2)}`;
 }
 
 render();
