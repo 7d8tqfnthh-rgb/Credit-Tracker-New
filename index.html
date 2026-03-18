@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Login</title>
+</head>
+<body>
+  <h2>Credit Tracker Login</h2>
+
+  <input id="user" placeholder="Username"><br><br>
+  <input id="pass" type="password" placeholder="Password"><br><br>
+
+  <button onclick="login()">Login</button>
+
+<script>
+function login() {
+  if (
+    document.getElementById("user").value === "lifesmasher" &&
+    document.getElementById("pass").value === "7564"
+  ) {
+    window.location.href = "dashboard.html";
+  } else {
+    alert("Wrong login");
+  }
+}
+</script>
+</body>
+</html>
