@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Dashboard</title>
+</head>
+<body>
+<h1>Credit Tracker Dashboard</h1>
+<h3>Add Transaction</h3>
+<input id="amount" placeholder="Amount Spent">
+<input id="returned" placeholder="Amount Returned">
+<input id="tracking" placeholder="Tracking #">
+<input id="link" placeholder="Product Link">
+<button onclick="addTransaction()">Add</button>
+<h3>Transactions</h3>
+<table border="1" id="table">
+<tr>
+<th>Amount</th>
+<th>Returned</th>
+<th>Profit</th>
+<th>Tracking</th>
+<th>Link</th>
+</tr>
+</table>
+<h2 id="totals"></h2>
+<h2 id="taxes"></h2>
+<script>
+let data = JSON.parse(localStorage.getItem("data")) || [];
+
+// ---- TAX SETTINGS (EDIT IF NEEDED) ----
+const FEDERAL_RATE = 0.12;     // 12% estimate
+const STATE_RATE = 0.025;      // Arizona 2.5%
+const SE_RATE = 0.153;         // Self-employment tax
+
+function addTransaction() {
+  let amount = Number(document.getElementById("amount").value);
+  let returned = Number(document.getElementById("returned").value);
+  let tracking = document.getElementById("tracking").value;
+  let link = document.getElementById("link").value;
+
+  let profit = returned - amount;
+
+  data.push({amount, returned, profit, tracking, link});
+  localStorage.setItem("data", JSON.stringify(data));
+
+  render();
+}
+
+function render() {
+  let table = document.getElementById("table");
+
+  table.innerHTML = `
+  <tr>
+    <th>Amount</th>
+    <th>Returned</th>
+    <th>Profit</th>
+    <th>Tracking</th>
+    <th>Link</th>
+  </tr>`;
+
+  let totalSpent = 0;
+  let totalReturned = 0;
+
+  data.forEach(t => {
+    totalSpent += t.amount;
+    totalReturned += t.returned;
+
+    table.innerHTML += `
+      <tr>
+        <td>${t.amount}</td>
+        <td>${t.returned}</td>
+        <td>${t.profit}</td>
+        <td>${t.tracking}</td>
+        <td><a href="${t.link}" target="_blank">Link</a></td>
+      </tr>`;
+  });
+
+  let totalProfit = totalReturned - totalSpent;
+
+  // ---- TAX CALCULATIONS ----
+  let federalTax = totalProfit * FEDERAL_RATE;
+  let stateTax = totalProfit * STATE_RATE;
+  let seTax = totalProfit * SE_RATE;
+
+  let totalTax = federalTax + stateTax + seTax;
+  let netProfit = totalProfit - totalTax;
+
+  document.getElementById("totals").innerText =
+    `Spent: $${totalSpent.toFixed(2)} | Returned: $${totalReturned.toFixed(2)} | Profit: $${totalProfit.toFixed(2)}`;
+
+  document.getElementById("taxes").innerText =
+    `Estimated Taxes → Federal: $${federalTax.toFixed(2)} | State: $${stateTax.toFixed(2)} | Self-Employment: $${seTax.toFixed(2)} | Total Tax: $${totalTax.toFixed(2)} | Net Profit: $${netProfit.toFixed(2)}`;
+}
+
+render();
+</script>
+</body>
+</html>
+:::
