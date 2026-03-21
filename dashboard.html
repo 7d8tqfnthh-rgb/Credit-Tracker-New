@@ -22,7 +22,7 @@
       margin-bottom: 15px;
     }
 
-    input {
+    input, select {
       width: 100%;
       padding: 12px;
       margin: 5px 0;
@@ -50,31 +50,42 @@
     td {
       padding: 6px;
     }
-
-    .totals {
-      font-size: 16px;
-      margin-top: 10px;
-    }
   </style>
 </head>
 <body>
-<h1>📊 Dashboard</h1>
+<h1>📊 Credit Tracker</h1>
 <div class="card">
   <h3>Add Transaction</h3>
   <input id="amount" placeholder="Amount Spent">
   <input id="returned" placeholder="Amount Returned">
   <input id="tracking" placeholder="Tracking #">
   <input id="link" placeholder="Product Link">
+  <select id="status">
+    <option value="Paid">Paid</option>
+    <option value="Pending">Pending</option>
+  </select>
   <button onclick="addTransaction()">Add Transaction</button>
 </div>
 <div class="card">
-  <h3>Totals</h3>
-  <div id="totals" class="totals"></div>
-  <div id="taxes" class="totals"></div>
+  <h3>Select Month</h3>
+  <select id="monthSelect" onchange="render()"></select>
+</div>
+<div class="card">
+  <h3>Summary</h3>
+  <div id="totals"></div>
+  <div id="taxes"></div>
 </div>
 <div class="card">
   <h3>Transactions</h3>
   <table id="table"></table>
+</div>
+<div class="card">
+  <h3>🚨 Outstanding (Who Owes You)</h3>
+  <table id="outstanding"></table>
+</div>
+<div class="card">
+  <h3>📊 Monthly History</h3>
+  <table id="history"></table>
 </div>
 <script>
 let data = JSON.parse(localStorage.getItem("data")) || [];
@@ -83,35 +94,65 @@ const FEDERAL_RATE = 0.12;
 const STATE_RATE = 0.025;
 const SE_RATE = 0.153;
 
+// Populate month dropdown
+function populateMonths() {
+  let select = document.getElementById("monthSelect");
+  let months = [...new Set(data.map(t => t.date?.slice(0,7)))];
+
+  select.innerHTML = "";
+
+  months.forEach(m => {
+    let option = document.createElement("option");
+    option.value = m;
+    option.text = m;
+    select.appendChild(option);
+  });
+
+  if (months.length > 0) {
+    select.value = months[months.length - 1];
+  }
+}
+
 function addTransaction() {
   let amount = Number(document.getElementById("amount").value);
   let returned = Number(document.getElementById("returned").value);
   let tracking = document.getElementById("tracking").value;
   let link = document.getElementById("link").value;
+  let status = document.getElementById("status").value;
 
   let profit = returned - amount;
 
-  data.push({amount, returned, profit, tracking, link});
+  let transaction = {
+    amount,
+    returned,
+    profit,
+    tracking,
+    link,
+    status,
+    date: new Date().toISOString()
+  };
+
+  data.push(transaction);
   localStorage.setItem("data", JSON.stringify(data));
 
+  populateMonths();
   render();
 }
 
 function render() {
-  let table = document.getElementById("table");
+  let selectedMonth = document.getElementById("monthSelect").value;
 
+  let filtered = data.filter(t => t.date?.startsWith(selectedMonth));
+
+  let table = document.getElementById("table");
   table.innerHTML = `
-    <tr>
-      <th>Spent</th>
-      <th>Return</th>
-      <th>Profit</th>
-    </tr>
+    <tr><th>Spent</th><th>Return</th><th>Profit</th></tr>
   `;
 
   let totalSpent = 0;
   let totalReturned = 0;
 
-  data.forEach(t => {
+  filtered.forEach(t => {
     totalSpent += t.amount;
     totalReturned += t.returned;
 
@@ -124,25 +165,53 @@ function render() {
     `;
   });
 
-  let totalProfit = totalReturned - totalSpent;
+  let profit = totalReturned - totalSpent;
 
-  let federalTax = totalProfit * FEDERAL_RATE;
-  let stateTax = totalProfit * STATE_RATE;
-  let seTax = totalProfit * SE_RATE;
-
-  let totalTax = federalTax + stateTax + seTax;
-  let netProfit = totalProfit - totalTax;
+  let tax = profit * (FEDERAL_RATE + STATE_RATE + SE_RATE);
+  let net = profit - tax;
 
   document.getElementById("totals").innerHTML =
     `💰 Spent: $${totalSpent.toFixed(2)}<br>
      💵 Returned: $${totalReturned.toFixed(2)}<br>
-     📈 Profit: $${totalProfit.toFixed(2)}`;
+     📈 Profit: $${profit.toFixed(2)}`;
 
   document.getElementById("taxes").innerHTML =
-    `🧾 Tax: $${totalTax.toFixed(2)}<br>
-     ✅ Net: $${netProfit.toFixed(2)}`;
+    `🧾 Tax: $${tax.toFixed(2)}<br>
+     ✅ Net: $${net.toFixed(2)}`;
+
+  // Outstanding
+  let outTable = document.getElementById("outstanding");
+  outTable.innerHTML = `<tr><th>Tracking</th><th>Owed</th></tr>`;
+
+  data.filter(t => t.status === "Pending").forEach(t => {
+    outTable.innerHTML += `
+      <tr>
+        <td>${t.tracking}</td>
+        <td>$${t.returned}</td>
+      </tr>
+    `;
+  });
+
+  // Monthly history
+  let history = {};
+  data.forEach(t => {
+    let m = t.date.slice(0,7);
+    if (!history[m]) history[m] = {spent:0, returned:0};
+
+    history[m].spent += t.amount;
+    history[m].returned += t.returned;
+  });
+
+  let histTable = document.getElementById("history");
+  histTable.innerHTML = `<tr><th>Month</th><th>Profit</th></tr>`;
+
+  for (let m in history) {
+    let p = history[m].returned - history[m].spent;
+    histTable.innerHTML += `<tr><td>${m}</td><td>$${p.toFixed(2)}</td></tr>`;
+  }
 }
 
+populateMonths();
 render();
 </script>
 </body>
