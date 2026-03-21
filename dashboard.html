@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Cloud Tracker</title>
+  <title>Credit Tracker</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
@@ -18,31 +18,30 @@
 
     let allData = [];
 
-    const monthNames = [
-      "January","February","March","April","May","June",
-      "July","August","September","October","November","December"
-    ];
-
-    function formatMonth(dateStr) {
-      let d = new Date(dateStr);
-      return monthNames[d.getMonth()] + " " + d.getFullYear();
-    }
+    const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
     function getMonthKey(dateStr) {
       let d = new Date(dateStr);
       return d.getFullYear() + "-" + d.getMonth();
     }
 
+    function formatMonth(dateStr) {
+      let d = new Date(dateStr);
+      return monthNames[d.getMonth()] + " " + d.getFullYear();
+    }
+
     async function addTransaction() {
       let amount = Number(document.getElementById("amount").value);
       let returned = Number(document.getElementById("returned").value);
       let tracking = document.getElementById("tracking").value;
+      let status = document.getElementById("status").value;
 
       await addDoc(collection(db, "transactions"), {
         amount,
         returned,
         profit: returned - amount,
         tracking,
+        status,
         date: new Date().toISOString()
       });
 
@@ -64,46 +63,93 @@
     function populateMonths() {
       let select = document.getElementById("monthSelect");
 
-      let uniqueMonths = {};
+      let unique = {};
 
-      // Collect months from data
       allData.forEach(t => {
         let key = getMonthKey(t.date);
-        uniqueMonths[key] = formatMonth(t.date);
+        unique[key] = formatMonth(t.date);
       });
 
-      // Always include current month
       let now = new Date();
       let currentKey = now.getFullYear() + "-" + now.getMonth();
-      uniqueMonths[currentKey] = monthNames[now.getMonth()] + " " + now.getFullYear();
+      unique[currentKey] = monthNames[now.getMonth()] + " " + now.getFullYear();
 
       select.innerHTML = "";
 
-      Object.keys(uniqueMonths).sort().forEach(key => {
-        let option = document.createElement("option");
-        option.value = key;
-        option.text = uniqueMonths[key];
-        select.appendChild(option);
+      Object.keys(unique).sort().forEach(key => {
+        let opt = document.createElement("option");
+        opt.value = key;
+        opt.text = unique[key];
+        select.appendChild(opt);
       });
 
       select.value = currentKey;
     }
 
     function render() {
-      let selectedKey = document.getElementById("monthSelect").value;
+      let selected = document.getElementById("monthSelect").value;
 
-      let total = 0;
-      let html = "";
+      let totalSpent = 0;
+      let totalReturned = 0;
+
+      let table = document.getElementById("table");
+      table.innerHTML = `<tr><th>Spent</th><th>Returned</th><th>Profit</th></tr>`;
 
       allData.forEach(t => {
-        if (getMonthKey(t.date) === selectedKey) {
-          total += t.profit;
-          html += `<p>$${t.profit} | ${t.tracking}</p>`;
+        if (getMonthKey(t.date) === selected) {
+          totalSpent += t.amount;
+          totalReturned += t.returned;
+
+          table.innerHTML += `
+            <tr>
+              <td>$${t.amount}</td>
+              <td>$${t.returned}</td>
+              <td>$${t.profit}</td>
+            </tr>
+          `;
         }
       });
 
-      document.getElementById("output").innerHTML =
-        `<b>Total Profit:</b> $${total.toFixed(2)}<br><br>` + html;
+      let profit = totalReturned - totalSpent;
+
+      let tax = profit * (0.12 + 0.025 + 0.153);
+      let net = profit - tax;
+
+      document.getElementById("totals").innerHTML =
+        `💰 Spent: $${totalSpent.toFixed(2)}<br>
+         💵 Returned: $${totalReturned.toFixed(2)}<br>
+         📈 Profit: $${profit.toFixed(2)}`;
+
+      document.getElementById("taxes").innerHTML =
+        `🧾 Tax: $${tax.toFixed(2)}<br>
+         ✅ Net: $${net.toFixed(2)}`;
+
+      // Outstanding
+      let out = document.getElementById("outstanding");
+      out.innerHTML = `<tr><th>Tracking</th><th>Owed</th></tr>`;
+
+      allData.filter(t => t.status === "Pending").forEach(t => {
+        out.innerHTML += `<tr><td>${t.tracking}</td><td>$${t.returned}</td></tr>`;
+      });
+
+      // Monthly history
+      let history = {};
+      allData.forEach(t => {
+        let key = getMonthKey(t.date);
+        if (!history[key]) history[key] = {spent:0, returned:0};
+
+        history[key].spent += t.amount;
+        history[key].returned += t.returned;
+      });
+
+      let hist = document.getElementById("history");
+      hist.innerHTML = `<tr><th>Month</th><th>Profit</th></tr>`;
+
+      Object.keys(history).forEach(key => {
+        let p = history[key].returned - history[key].spent;
+        let label = formatMonth(new Date(key + "-01"));
+        hist.innerHTML += `<tr><td>${label}</td><td>$${p.toFixed(2)}</td></tr>`;
+      });
     }
 
     window.addTransaction = addTransaction;
@@ -130,7 +176,6 @@
       margin: 5px 0;
       border-radius: 8px;
       border: none;
-      font-size: 16px;
     }
 
     button {
@@ -140,7 +185,6 @@
       border: none;
       border-radius: 10px;
       color: white;
-      font-size: 16px;
     }
   </style>
 </head>
@@ -150,6 +194,10 @@
   <input id="amount" placeholder="Amount Spent">
   <input id="returned" placeholder="Returned">
   <input id="tracking" placeholder="Tracking #">
+  <select id="status">
+    <option value="Paid">Paid</option>
+    <option value="Pending">Pending</option>
+  </select>
   <button onclick="addTransaction()">Add</button>
 </div>
 <div class="card">
@@ -157,7 +205,21 @@
   <select id="monthSelect" onchange="render()"></select>
 </div>
 <div class="card">
-  <div id="output"></div>
+  <h3>Summary</h3>
+  <div id="totals"></div>
+  <div id="taxes"></div>
+</div>
+<div class="card">
+  <h3>Transactions</h3>
+  <table id="table"></table>
+</div>
+<div class="card">
+  <h3>🚨 Outstanding</h3>
+  <table id="outstanding"></table>
+</div>
+<div class="card">
+  <h3>📊 Monthly History</h3>
+  <table id="history"></table>
 </div>
 </body>
 </html>
