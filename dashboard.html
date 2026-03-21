@@ -1,18 +1,120 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Dashboard</title>
+  <title>Cloud Tracker</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getFirestore, collection, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "PASTE_HERE",
+      authDomain: "PASTE_HERE",
+      projectId: "PASTE_HERE"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    let allData = [];
+
+    const monthNames = [
+      "January","February","March","April","May","June",
+      "July","August","September","October","November","December"
+    ];
+
+    function formatMonth(dateStr) {
+      let d = new Date(dateStr);
+      return monthNames[d.getMonth()] + " " + d.getFullYear();
+    }
+
+    function getMonthKey(dateStr) {
+      let d = new Date(dateStr);
+      return d.getFullYear() + "-" + d.getMonth();
+    }
+
+    async function addTransaction() {
+      let amount = Number(document.getElementById("amount").value);
+      let returned = Number(document.getElementById("returned").value);
+      let tracking = document.getElementById("tracking").value;
+
+      await addDoc(collection(db, "transactions"), {
+        amount,
+        returned,
+        profit: returned - amount,
+        tracking,
+        date: new Date().toISOString()
+      });
+
+      loadData();
+    }
+
+    async function loadData() {
+      let snapshot = await getDocs(collection(db, "transactions"));
+      allData = [];
+
+      snapshot.forEach(doc => {
+        allData.push(doc.data());
+      });
+
+      populateMonths();
+      render();
+    }
+
+    function populateMonths() {
+      let select = document.getElementById("monthSelect");
+
+      let uniqueMonths = {};
+
+      // Collect months from data
+      allData.forEach(t => {
+        let key = getMonthKey(t.date);
+        uniqueMonths[key] = formatMonth(t.date);
+      });
+
+      // Always include current month
+      let now = new Date();
+      let currentKey = now.getFullYear() + "-" + now.getMonth();
+      uniqueMonths[currentKey] = monthNames[now.getMonth()] + " " + now.getFullYear();
+
+      select.innerHTML = "";
+
+      Object.keys(uniqueMonths).sort().forEach(key => {
+        let option = document.createElement("option");
+        option.value = key;
+        option.text = uniqueMonths[key];
+        select.appendChild(option);
+      });
+
+      select.value = currentKey;
+    }
+
+    function render() {
+      let selectedKey = document.getElementById("monthSelect").value;
+
+      let total = 0;
+      let html = "";
+
+      allData.forEach(t => {
+        if (getMonthKey(t.date) === selectedKey) {
+          total += t.profit;
+          html += `<p>$${t.profit} | ${t.tracking}</p>`;
+        }
+      });
+
+      document.getElementById("output").innerHTML =
+        `<b>Total Profit:</b> $${total.toFixed(2)}<br><br>` + html;
+    }
+
+    window.addTransaction = addTransaction;
+    window.onload = loadData;
+  </script>
   <style>
     body {
       font-family: Arial;
       background: #0f172a;
       color: white;
       padding: 15px;
-    }
-
-    h1 {
-      text-align: center;
     }
 
     .card {
@@ -37,183 +139,26 @@
       background: #22c55e;
       border: none;
       border-radius: 10px;
-      font-size: 16px;
       color: white;
-      margin-top: 10px;
-    }
-
-    table {
-      width: 100%;
-      font-size: 12px;
-    }
-
-    td {
-      padding: 6px;
+      font-size: 16px;
     }
   </style>
 </head>
 <body>
-<h1>📊 Credit Tracker</h1>
+<h1>☁️ Credit Tracker</h1>
 <div class="card">
-  <h3>Add Transaction</h3>
   <input id="amount" placeholder="Amount Spent">
-  <input id="returned" placeholder="Amount Returned">
+  <input id="returned" placeholder="Returned">
   <input id="tracking" placeholder="Tracking #">
-  <input id="link" placeholder="Product Link">
-  <select id="status">
-    <option value="Paid">Paid</option>
-    <option value="Pending">Pending</option>
-  </select>
-  <button onclick="addTransaction()">Add Transaction</button>
+  <button onclick="addTransaction()">Add</button>
 </div>
 <div class="card">
   <h3>Select Month</h3>
   <select id="monthSelect" onchange="render()"></select>
 </div>
 <div class="card">
-  <h3>Summary</h3>
-  <div id="totals"></div>
-  <div id="taxes"></div>
+  <div id="output"></div>
 </div>
-<div class="card">
-  <h3>Transactions</h3>
-  <table id="table"></table>
-</div>
-<div class="card">
-  <h3>🚨 Outstanding (Who Owes You)</h3>
-  <table id="outstanding"></table>
-</div>
-<div class="card">
-  <h3>📊 Monthly History</h3>
-  <table id="history"></table>
-</div>
-<script>
-let data = JSON.parse(localStorage.getItem("data")) || [];
-
-const FEDERAL_RATE = 0.12;
-const STATE_RATE = 0.025;
-const SE_RATE = 0.153;
-
-// Populate month dropdown
-function populateMonths() {
-  let select = document.getElementById("monthSelect");
-  let months = [...new Set(data.map(t => t.date?.slice(0,7)))];
-
-  select.innerHTML = "";
-
-  months.forEach(m => {
-    let option = document.createElement("option");
-    option.value = m;
-    option.text = m;
-    select.appendChild(option);
-  });
-
-  if (months.length > 0) {
-    select.value = months[months.length - 1];
-  }
-}
-
-function addTransaction() {
-  let amount = Number(document.getElementById("amount").value);
-  let returned = Number(document.getElementById("returned").value);
-  let tracking = document.getElementById("tracking").value;
-  let link = document.getElementById("link").value;
-  let status = document.getElementById("status").value;
-
-  let profit = returned - amount;
-
-  let transaction = {
-    amount,
-    returned,
-    profit,
-    tracking,
-    link,
-    status,
-    date: new Date().toISOString()
-  };
-
-  data.push(transaction);
-  localStorage.setItem("data", JSON.stringify(data));
-
-  populateMonths();
-  render();
-}
-
-function render() {
-  let selectedMonth = document.getElementById("monthSelect").value;
-
-  let filtered = data.filter(t => t.date?.startsWith(selectedMonth));
-
-  let table = document.getElementById("table");
-  table.innerHTML = `
-    <tr><th>Spent</th><th>Return</th><th>Profit</th></tr>
-  `;
-
-  let totalSpent = 0;
-  let totalReturned = 0;
-
-  filtered.forEach(t => {
-    totalSpent += t.amount;
-    totalReturned += t.returned;
-
-    table.innerHTML += `
-      <tr>
-        <td>$${t.amount}</td>
-        <td>$${t.returned}</td>
-        <td>$${t.profit}</td>
-      </tr>
-    `;
-  });
-
-  let profit = totalReturned - totalSpent;
-
-  let tax = profit * (FEDERAL_RATE + STATE_RATE + SE_RATE);
-  let net = profit - tax;
-
-  document.getElementById("totals").innerHTML =
-    `💰 Spent: $${totalSpent.toFixed(2)}<br>
-     💵 Returned: $${totalReturned.toFixed(2)}<br>
-     📈 Profit: $${profit.toFixed(2)}`;
-
-  document.getElementById("taxes").innerHTML =
-    `🧾 Tax: $${tax.toFixed(2)}<br>
-     ✅ Net: $${net.toFixed(2)}`;
-
-  // Outstanding
-  let outTable = document.getElementById("outstanding");
-  outTable.innerHTML = `<tr><th>Tracking</th><th>Owed</th></tr>`;
-
-  data.filter(t => t.status === "Pending").forEach(t => {
-    outTable.innerHTML += `
-      <tr>
-        <td>${t.tracking}</td>
-        <td>$${t.returned}</td>
-      </tr>
-    `;
-  });
-
-  // Monthly history
-  let history = {};
-  data.forEach(t => {
-    let m = t.date.slice(0,7);
-    if (!history[m]) history[m] = {spent:0, returned:0};
-
-    history[m].spent += t.amount;
-    history[m].returned += t.returned;
-  });
-
-  let histTable = document.getElementById("history");
-  histTable.innerHTML = `<tr><th>Month</th><th>Profit</th></tr>`;
-
-  for (let m in history) {
-    let p = history[m].returned - history[m].spent;
-    histTable.innerHTML += `<tr><td>${m}</td><td>$${p.toFixed(2)}</td></tr>`;
-  }
-}
-
-populateMonths();
-render();
-</script>
 </body>
 </html>
 :::
