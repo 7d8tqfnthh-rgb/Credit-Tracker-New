@@ -1,30 +1,202 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Test Tracker</title>
+  <title>Credit Tracker</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      font-family: Arial;
+      background: #0f172a;
+      color: white;
+      padding: 15px;
+    }
+
+    .card {
+      background: #1e293b;
+      padding: 15px;
+      border-radius: 15px;
+      margin-bottom: 15px;
+    }
+
+    input, select {
+      width: 100%;
+      padding: 12px;
+      margin: 5px 0;
+      border-radius: 8px;
+      border: none;
+      font-size: 16px;
+    }
+
+    button {
+      width: 100%;
+      padding: 14px;
+      background: #22c55e;
+      border: none;
+      border-radius: 10px;
+      color: white;
+      font-size: 16px;
+    }
+
+    table {
+      width: 100%;
+      font-size: 12px;
+    }
+
+    td, th {
+      padding: 6px;
+    }
+  </style>
 </head>
-
-<body style="background:#0f172a;color:white;font-family:Arial;padding:20px;">
-
-<h2>Test Add Button</h2>
-
-<input id="amount" placeholder="Amount"><br><br>
-<input id="returned" placeholder="Returned"><br><br>
-
-<button onclick="addTransaction()">Add</button>
-
-<p id="output"></p>
-
+<body>
+<h1>📊 Credit Tracker</h1>
+<div class="card">
+  <input id="amount" placeholder="Amount Spent">
+  <input id="returned" placeholder="Amount Returned">
+  <input id="tracking" placeholder="Tracking #">
+  <select id="status">
+    <option value="Paid">Paid</option>
+    <option value="Pending">Pending</option>
+  </select>
+</div>
+<div class="card">
+  <h3>Select Month</h3>
+  <select id="monthSelect" onchange="render()"></select>
+</div>
+<div class="card">
+  <h3>Summary</h3>
+  <div id="summary"></div>
+</div>
+<div class="card">
+  <h3>Transactions</h3>
+  <table id="table"></table>
+</div>
+<div class="card">
+  <h3>🚨 Outstanding</h3>
+  <table id="outstanding"></table>
+</div>
 <script>
+// LOAD DATA
+let data = JSON.parse(localStorage.getItem("data")) || [];
+
+// MONTH NAMES
+const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+
+// ADD TRANSACTION
 function addTransaction() {
-  let amount = document.getElementById("amount").value;
-  let returned = document.getElementById("returned").value;
+  let amount = Number(document.getElementById("amount").value);
+  let returned = Number(document.getElementById("returned").value);
+  let tracking = document.getElementById("tracking").value;
+  let status = document.getElementById("status").value;
 
-  document.getElementById("output").innerText =
-    "Added: " + amount + " → " + returned;
+  if (!amount || !returned) {
+    alert("Enter valid numbers");
+    return;
+  }
+
+  let item = {
+    amount,
+    returned,
+    profit: returned - amount,
+    tracking,
+    status,
+    date: new Date().toISOString()
+  };
+
+  data.push(item);
+  localStorage.setItem("data", JSON.stringify(data));
+
+  populateMonths();
+  render();
 }
-</script>
 
+// GET MONTH KEY
+function getMonthKey(dateStr) {
+  let d = new Date(dateStr);
+  return d.getFullYear() + "-" + d.getMonth();
+}
+
+// FORMAT MONTH
+function formatMonth(dateStr) {
+  let d = new Date(dateStr);
+  return months[d.getMonth()] + " " + d.getFullYear();
+}
+
+// POPULATE DROPDOWN
+function populateMonths() {
+  let select = document.getElementById("monthSelect");
+  let unique = {};
+
+  data.forEach(t => {
+    unique[getMonthKey(t.date)] = formatMonth(t.date);
+  });
+
+  let now = new Date();
+  let currentKey = now.getFullYear() + "-" + now.getMonth();
+  unique[currentKey] = months[now.getMonth()] + " " + now.getFullYear();
+
+  select.innerHTML = "";
+
+  Object.keys(unique).forEach(key => {
+    let opt = document.createElement("option");
+    opt.value = key;
+    opt.text = unique[key];
+    select.appendChild(opt);
+  });
+
+  select.value = currentKey;
+}
+
+// RENDER
+function render() {
+  let selected = document.getElementById("monthSelect").value;
+
+  let spent = 0;
+  let returned = 0;
+
+  let table = document.getElementById("table");
+  table.innerHTML = "<tr><th>Spent</th><th>Returned</th><th>Profit</th></tr>";
+
+  data.forEach(t => {
+    if (getMonthKey(t.date) === selected) {
+      spent += t.amount;
+      returned += t.returned;
+
+      table.innerHTML += `
+        <tr>
+          <td>$${t.amount}</td>
+          <td>$${t.returned}</td>
+          <td>$${t.profit}</td>
+        </tr>
+      `;
+    }
+  });
+
+  let profit = returned - spent;
+  let tax = profit * 0.30;
+  let net = profit - tax;
+
+  document.getElementById("summary").innerHTML =
+    `💰 Spent: $${spent.toFixed(2)}<br>
+     💵 Returned: $${returned.toFixed(2)}<br>
+     📈 Profit: $${profit.toFixed(2)}<br>
+     🧾 Tax (est): $${tax.toFixed(2)}<br>
+     ✅ Net: $${net.toFixed(2)}`;
+
+  // OUTSTANDING
+  let out = document.getElementById("outstanding");
+  out.innerHTML = "<tr><th>Tracking</th><th>Owed</th></tr>";
+
+  data.forEach(t => {
+    if (t.status === "Pending") {
+      out.innerHTML += `<tr><td>${t.tracking}</td><td>$${t.returned}</td></tr>`;
+    }
+  });
+}
+
+// INIT
+populateMonths();
+render();
+</script>
 </body>
 </html>
+:::
